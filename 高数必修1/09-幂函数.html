@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>幂函数</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<!--引入three.js 工具-->
+<script src="/build/three.js"></script>
+<!--引入轨道控制器，此控制器会直接挂载到three.js暴露出的THREE对象上-->
+<script src="/build/OrbitControls.js"></script>
+<!--GUI-->
+<script src="/build/dat.gui.min.js"></script>
+<script>
+    /*解构常用对象，方便调用*/
+    const {
+        AxesHelper,BoxBufferGeometry,DirectionalLight,Geometry,Line,LineBasicMaterial,Mesh,MeshPhongMaterial,OrbitControls,OrthographicCamera,Points,PointsMaterial,Scene,Vector3,WebGLRenderer,
+    }=THREE;
+
+    /*获取canvas 元素
+    * 获取视口尺寸
+    * */
+    const canvas = document.querySelector('#canvas');
+    let [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+    /*渲染器对象 WebGLRenderer
+    * setSize：设置渲染尺寸
+    * */
+    const renderer = new WebGLRenderer({canvas});
+    renderer.setSize(viewW, viewH);
+
+    /*场景对象 Scene*/
+    const scene = new Scene();
+
+    /*正交相机 OrthographicCamera
+    * left — 摄像机视锥体左侧面。
+    * right — 摄像机视锥体右侧面。
+    * top — 摄像机视锥体上侧面。
+    * bottom — 摄像机视锥体下侧面。
+    * near — 摄像机视锥体近端面。
+    * far — 摄像机视锥体远端面。
+    * */
+    //三维场景显示范围的控制系数，系数越大，显示的范围越大
+    const s = 0.5;
+    //实例化正交相机
+    const camera = new OrthographicCamera();
+    //更新相机的投影矩阵
+    updateCamera();
+    //相机位置
+    camera.position.set(0,0,1);
+    scene.add(camera);
+
+    /*坐标轴*/
+    const axesHelper = new AxesHelper( 0.3 );
+    scene.add( axesHelper );
+
+    /*幂函数的一般式为：y=pow(x,a),(a∈R)
+    * x：幂的底数，自变量
+    * a：幂的指数，常量
+    * y：幂，因变量
+    * */
+    let dt={
+        a:2,
+        x1:-3,
+        x2:3,
+    };
+    /*段数*/
+    let seg=40;
+    /*获取因变量的值*/
+    function getY(a,x) {
+        return Math.pow(x,a);
+    }
+
+    /*顶点集合*/
+    let vertices=[];
+    let vertices2=[];
+
+    /*绘图*/
+    //线模型
+    let geo=null;
+    let geo2=null;
+    //线对象
+    let line=null;
+    let line2=null;
+    //点对象
+    let points=null;
+    let points2=null;
+    //辅助线模型
+    // let geoH=null;
+    {
+        /*线*/
+        /*线材质 LineBasicMaterial*/
+        const mat=new LineBasicMaterial({
+            color:0xdddddd
+        });
+        /*模型 Geometry*/
+        geo=new Geometry();
+        /*线对象*/
+        line=new Line(geo,mat);
+        line.scale.set(0.05,0.05,0.05);
+        /*将网格对象添加到场景*/
+        scene.add(line);
+
+        /*模型 Geometry*/
+        geo2=new Geometry();
+        /*线对象*/
+        line2=new Line(geo2,mat);
+        line2.scale.set(0.05,0.05,0.05);
+        /*将网格对象添加到场景*/
+        scene.add(line2);
+
+        /*点 Points*/
+        /*点材质*/
+        const matP=new PointsMaterial({
+            color:0xffff00,
+            size:4
+        });
+        points=new Points(geo,matP);
+        points.scale.set(0.05,0.05,0.05);
+        scene.add(points);
+
+        points2=new Points(geo2,matP);
+        points2.scale.set(0.05,0.05,0.05);
+        scene.add(points2);
+
+        /*更新顶点*/
+        updateVertices();
+    }
+
+    /*GUI*/
+    const gui=new dat.GUI();
+    gui.add(dt,'a',[-1,1,1/2,1,2,3]).onChange(function(){
+        updateVertices();
+        render();
+    });
+    gui.add(dt,'x1',-9, 6,0.1).onChange(function(){
+        updateVertices();
+        render();
+    });
+    gui.add(dt,'x2',-9, 6,0.1).onChange(function(){
+        updateVertices();
+        render();
+    });
+    /*更新模型顶点*/
+    function updateVertices(){
+        geo.verticesNeedUpdate=true;
+        geo2.verticesNeedUpdate=true;
+        line.geometry=new Geometry();
+        line2.geometry=new Geometry();
+        const {a,x1,x2}=dt;
+        const space=(x2-x1)/seg;
+        if(a<0){
+            line2.visible=true;
+            points2.visible=true;
+            for(let x=x1;x<x2;x+=space){
+                const y=getY(a,x);
+                if(x.toFixed(4)>0){
+                    line.geometry.vertices.push(new Vector3(x,y,0));
+                }
+                if(x.toFixed(4)<0){
+                    line2.geometry.vertices.push(new Vector3(x,y,0));
+                }
+            }
+        }else{
+            line2.visible=false;
+            points2.visible=false;
+
+            for(let x=x1;x<x2;x+=space){
+                if(a<1&&x<0){continue}
+                const y=getY(a,x);
+                line.geometry.vertices.push(new Vector3(x,y,0));
+            }
+        }
+        points.geometry=line.geometry;
+        points2.geometry=line2.geometry;
+    }
+
+    /*轨道控制器 OrbitControls*/
+    const orbitCtrl = new OrbitControls(camera, canvas);
+    /*当轨道控制器发生改变时，进行渲染*/
+    orbitCtrl.addEventListener('change',function(){
+        render();
+    });
+
+    /*渲染*/
+    render();
+
+    /*自适应窗口
+    * 重新获取视口尺寸
+    * 设置渲染器尺寸
+    * 设置相机的投影矩阵
+    * */
+    window.onresize=function () {
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        renderer.setSize(viewW, viewH);
+        updateCamera();
+        render();
+    };
+    /*渲染*/
+    function render() {
+        renderer.render(scene, camera);
+    }
+    /*更新相机投影矩阵*/
+    function updateCamera(){
+        const k = viewW / viewH;
+        camera.left=-s * k;
+        camera.right=s * k;
+        camera.top=s;
+        camera.bottom=-s;
+        camera.near=0.1;
+        camera.far=2000;
+        camera.updateProjectionMatrix();
+    }
+</script>
+</body>
+</html>

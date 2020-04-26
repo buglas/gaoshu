@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>多边形体积</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<!--引入three.js 工具-->
+<script src="/build/three.js"></script>
+<!--引入轨道控制器，此控制器会直接挂载到three.js暴露出的THREE对象上-->
+<script src="/build/OrbitControls.js"></script>
+<script type="module">
+    /*解构常用对象，方便调用*/
+    const {
+        AxesHelper,BoxBufferGeometry,BufferGeometry,DirectionalLight,DirectionalLightHelper,Geometry,Mesh,MeshLambertMaterial,MeshPhongMaterial,Line,LineBasicMaterial,LineLoop,OrbitControls,OrthographicCamera,PerspectiveCamera,PlaneBufferGeometry,Scene,SpotLight,SpotLightHelper,Vector3,WebGLRenderer,
+    }=THREE;
+    import { GUI } from '/jsm/libs/dat.gui.module.js';
+    import GaoShu from '/jsmSelf/GaoShu.js';
+
+    let viewW,viewH;
+    let renderer,scene,camera,lightMain,dirLight2,orbitCtrl;
+
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtLight();
+    crtOrbitCtrl();
+    crtAxes();
+
+    /*绘图*/
+    {
+        /*高光材质 MeshPhongMaterial*/
+        const mat=new MeshPhongMaterial({
+            color:0xeeeeee
+        });
+        /*立方体模型 BoxBufferGeometry*/
+        const geo=new BoxBufferGeometry(0.5,0.5,0.5);
+        /*网格对象 Mesh*/
+        const mesh=new Mesh(geo,mat);
+        mesh.castShadow=true;
+        mesh.position.y=0.25;
+        /*将网格对象添加到场景*/
+        scene.add(mesh);
+
+        /*体积计算*/
+        const v=GaoShu.volume(geo);
+        console.log('-----',v);
+    }
+    /*渲染*/
+    render();
+
+    /*自适应窗口*/
+    window.onresize=function () {
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        renderer.setSize(viewW, viewH);
+        updateCamera();
+        render();
+    };
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        const canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.shadowMap.enabled = true;
+        renderer.setSize(viewW, viewH);
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    function crtCamera(){
+        /*透视相机PerspectiveCamera
+        * fov：摄像机视锥体垂直视野角度
+        * aspect：摄像机视锥体长宽比
+        * near：摄像机视锥体近端面
+        * far：摄像机视锥体远端面
+        * */
+        const fov = 45;
+        const aspect = viewW / viewH;
+        const near = 0.01;
+        const far = 10;
+        camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(1, 1, 2 );
+        camera.lookAt(scene.position);
+        scene.add(camera);
+    }
+    function crtLight(){
+        /*灯光
+        * DirectionalLight 平行光
+        * */
+        //主光源
+        lightMain=new SpotLight(0xffffff,1.2);
+        lightMain.castShadow=true;
+        lightMain.angle = Math.PI /6;
+        lightMain.shadow.radius=2;
+        lightMain.shadow.mapSize.set(1024,1024);
+        lightMain.shadow.camera.near = 0.1;
+        lightMain.shadow.camera.far = 10;
+        lightMain.shadow.camera.fov = 20;
+        lightMain.position.set(-1.5,3.3,3);
+        scene.add(lightMain);
+        //辅光源
+        dirLight2=new DirectionalLight(0xffffff,0.5);
+        dirLight2.position.set(1.5,0.6,-1);
+        scene.add(dirLight2);
+    }
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+        /*当轨道控制器发生改变时，进行渲染*/
+        orbitCtrl.addEventListener('change',function(){
+            render();
+        });
+    }
+    function render() {
+        renderer.render(scene, camera);
+    }
+    /*更新相机投影矩阵*/
+    function updateCamera(){
+        //重新获取视口尺寸
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        //设置渲染器尺寸
+        renderer.setSize(viewW, viewH);
+        //设置相机视椎体长宽比
+        camera.aspect = viewW / viewH;
+        //更新相机的投影矩阵
+        camera.updateProjectionMatrix();
+        //重新渲染
+        render();
+    }
+    //计算体积
+    function computeVolume(geo){
+        let V=0;
+        // 几何体三角形索引
+        for (let i = 0; i < geo.faces.length; i++) {
+            // 几何体三角形索引
+            const index0 = geo.faces[i].a;
+            const index1 = geo.faces[i].b;
+            const index2 = geo.faces[i].c;
+            // 通过索引访问三角形顶点坐标值
+            const p0 = geo.vertices[index0];
+            const p1 = geo.vertices[index1];
+            const p2 = geo.vertices[index2];
+            //使用下面的函数，并不会改变p0, p1, p2引用指向的geo顶点坐标值
+            //三角形与坐标原点构成的四面体体积累计计算
+            V += vFun(p0, p1, p2);
+        }
+        return V;
+    }
+    // 四面体体积计算公式
+    function vFun(p1, p2, p3) {
+        //借助threejs的Vector3的叉乘、点乘方法进行计算
+        return p1.clone().cross(p2).dot(p3) / 6; //p1叉乘p2点乘p3除以6
+    }
+
+
+
+
+    function crtAxes(){
+        /*坐标轴*/
+        const axesHelper = new AxesHelper( 1);
+        scene.add( axesHelper );
+    }
+</script>
+</body>
+</html>

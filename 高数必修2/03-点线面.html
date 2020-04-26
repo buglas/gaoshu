@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>点线面</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+        #video{
+            position: absolute;
+            left: 9px;
+            top:9px;
+            width:20%;
+            outline:none;
+        }
+    </style>
+</head>
+<body>
+<video id="video" autoplay controls src="/textures/dxm.mp4"></video>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<script type="module">
+    import {
+        BackSide,BoxBufferGeometry,BoxHelper,DirectionalLight,DoubleSide,FrontSide,Mesh,MeshBasicMaterial,MeshNormalMaterial,MeshPhongMaterial,OctahedronBufferGeometry,OrthographicCamera,PerspectiveCamera,PlaneGeometry,Points,PointsMaterial,Scene,VideoTexture,WebGLRenderer,
+    } from '/build/three.module.js';
+    import { GUI } from '/jsm/libs/dat.gui.module.js';
+    import { OrbitControls } from '/jsm/controls/OrbitControls.js';
+
+    let viewW,viewH;
+    let renderer,scene,camera,dirLight1,dirLight2,orbitCtrl;
+    let dt={radius:0.5,detail:0};
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtLight();
+    crtOrbitCtrl();
+
+    /*绘图*/
+    const video=document.getElementById('video');
+    video.addEventListener('play',function(){
+        const texture = new VideoTexture(video);
+        /*立方体模型 BoxBufferGeometry*/
+        const geo=new BoxBufferGeometry(0.5,0.5,0.5);
+        /*背面的高光材质 MeshPhongMaterial*/
+        const matBack=new MeshPhongMaterial({
+            // color:0xeeeeee,
+            // opacity:0.7,
+            transparent:true,
+            side:BackSide,
+            alphaMap:texture,
+        });
+        /*背面可见的网格对象 Mesh*/
+        const meshBack=new Mesh(geo,matBack);
+        /*将网格对象添加到场景*/
+        scene.add(meshBack);
+
+        /*正面的高光材质*/
+        const matFront=matBack.clone();
+        matFront.side=FrontSide;
+        /*正面的网格对象 Mesh*/
+        const meshFront=new Mesh(geo,matFront);
+        scene.add(meshFront);
+    });
+    /*渲染*/
+    render();
+    /*自适应窗口*/
+    window.addEventListener('resize',resizeFn);
+
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        const canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.setSize(viewW, viewH);
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    function crtCamera(){
+        /*透视相机PerspectiveCamera
+        * fov：摄像机视锥体垂直视野角度
+        * aspect：摄像机视锥体长宽比
+        * near：摄像机视锥体近端面
+        * far：摄像机视锥体远端面
+        * */
+        const fov = 45;
+        const aspect = viewW / viewH;
+        const near = 0.01;
+        const far = 10;
+        camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(1,1,1.4);
+        camera.lookAt(scene.position);
+        scene.add(camera);
+    }
+    function crtLight(){
+        /*灯光
+        * DirectionalLight 平行光
+        * */
+        //主光源
+        dirLight1=new DirectionalLight(0xffffff,1.5);
+        dirLight1.position.set(-0.5,1,0.8);
+        scene.add(dirLight1);
+        //辅光源
+        dirLight2=new DirectionalLight(0xffffff,0.65);
+        dirLight2.position.set(1.5,-0.8,-1);
+        scene.add(dirLight2);
+    }
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+    }
+    function render() {
+        renderer.render(scene, camera);
+        requestAnimationFrame(render);
+    }
+    function resizeFn(){
+        //重新获取视口尺寸
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        //设置渲染器尺寸
+        renderer.setSize(viewW, viewH);
+        //设置相机视椎体长宽比
+        camera.aspect = viewW / viewH;
+        //更新相机的投影矩阵
+        camera.updateProjectionMatrix();
+        //重新渲染
+        render();
+    }
+
+</script>
+</body>
+</html>

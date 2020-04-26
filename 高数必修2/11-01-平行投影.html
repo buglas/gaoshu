@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>投影</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<!--引入three.js 工具-->
+<script src="/build/three.js"></script>
+<!--引入轨道控制器，此控制器会直接挂载到three.js暴露出的THREE对象上-->
+<script src="/build/OrbitControls.js"></script>
+<script>
+    /*解构常用对象，方便调用*/
+    const {
+        BoxBufferGeometry,DirectionalLight,DirectionalLightHelper,Mesh,MeshBasicMaterial,MeshLambertMaterial,MeshPhongMaterial,OrbitControls,OrthographicCamera,PerspectiveCamera,PlaneBufferGeometry,Scene,WebGLRenderer,
+    }=THREE;
+
+    let viewW,viewH;
+    let renderer,scene,camera,lightMain,dirLight2,orbitCtrl;
+
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtLight();
+    crtOrbitCtrl();
+
+    /*绘图*/
+    {
+        /*地面材质*/
+        const matGround=new MeshLambertMaterial({
+            color:0xcccccc
+        });
+        /*地面模型*/
+        const geoGround=new PlaneBufferGeometry(4,4);
+        /*地面网格*/
+        const meshGround=new Mesh(geoGround,matGround);
+        meshGround.rotation.x=-Math.PI/2;
+        meshGround.receiveShadow=true;
+        scene.add(meshGround);
+
+        /*高光材质 MeshPhongMaterial*/
+        const mat=new MeshPhongMaterial({
+            color:0xeeeeee
+        });
+        /*立方体模型 BoxBufferGeometry*/
+        const geo=new BoxBufferGeometry(0.5,0.5,0.5);
+        /*网格对象 Mesh*/
+        const mesh=new Mesh(geo,mat);
+        mesh.castShadow=true;
+        mesh.position.y=0.25;
+        /*将网格对象添加到场景*/
+        scene.add(mesh);
+    }
+    /*渲染*/
+    render();
+
+    /*自适应窗口*/
+    window.onresize=function () {
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        renderer.setSize(viewW, viewH);
+        updateCamera();
+        render();
+    };
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        const canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.shadowMap.enabled = true;
+        renderer.setSize(viewW, viewH);
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    /*function crtCamera(){
+        /!*透视相机PerspectiveCamera
+        * fov：摄像机视锥体垂直视野角度
+        * aspect：摄像机视锥体长宽比
+        * near：摄像机视锥体近端面
+        * far：摄像机视锥体远端面
+        * *!/
+        const fov = 45;
+        const aspect = viewW / viewH;
+        const near = 0.01;
+        const far = 10;
+        camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(1,1,1);
+        scene.add(camera);
+    }*/
+    function crtCamera(){
+        /*正交相机 OrthographicCamera
+        * left — 摄像机视锥体左侧面。
+        * right — 摄像机视锥体右侧面。
+        * top — 摄像机视锥体上侧面。
+        * bottom — 摄像机视锥体下侧面。
+        * near — 摄像机视锥体近端面。
+        * far — 摄像机视锥体远端面。
+        * */
+        //实例化正交相机
+        camera = new OrthographicCamera();
+        camera.near=0.1;
+        camera.far=10;
+        camera.position.set(2, 2, 4);
+        camera.lookAt(scene.position);
+        //更新相机的投影矩阵
+        updateCamera();
+        //相机位置
+        // camera.position.set(0.5,0.5,1);
+        scene.add(camera);
+    }
+    function crtLight(){
+        /*灯光
+        * DirectionalLight 平行光
+        * */
+        //主光源
+        lightMain=new DirectionalLight(0xffffff,1.2);
+        lightMain.castShadow=true;
+        lightMain.shadow.radius=2;
+        lightMain.shadow.mapSize.set(1024,1024);
+        lightMain.shadow.camera.near=0.1;
+        lightMain.shadow.camera.far=4;
+        lightMain.shadow.camera.right = 2;
+        lightMain.shadow.camera.left = - 2;
+        lightMain.shadow.camera.top	= 2;
+        lightMain.shadow.camera.bottom = - 2;
+        lightMain.position.set(-0.5,1,0.8);
+        scene.add(lightMain);
+        //辅光源
+        dirLight2=new DirectionalLight(0xffffff,0.4);
+        dirLight2.position.set(1.5,0.3,-1);
+        scene.add(dirLight2);
+        /*灯光显形*/
+        const helper = new DirectionalLightHelper( lightMain, 1 );
+        scene.add(helper);
+    }
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+        /*当轨道控制器发生改变时，进行渲染*/
+        orbitCtrl.addEventListener('change',function(){
+            render();
+        });
+    }
+    function render() {
+        renderer.render(scene, camera);
+    }
+    /*更新相机投影矩阵*/
+    function updateCamera(){
+        const s = 0.7;
+        const k = viewW / viewH;
+        camera.left=-s * k;
+        camera.right=s * k;
+        camera.top=s;
+        camera.bottom=-s;
+        camera.updateProjectionMatrix();
+    }
+</script>
+</body>
+</html>

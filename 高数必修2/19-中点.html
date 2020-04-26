@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>中点</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<!--引入three.js 工具-->
+<script src="/build/three.js"></script>
+<!--引入轨道控制器，此控制器会直接挂载到three.js暴露出的THREE对象上-->
+<script src="/build/OrbitControls.js"></script>
+<script type="module">
+    /*解构常用对象，方便调用*/
+    const {
+        AmbientLight,ArrowHelper,AxesHelper,BoxBufferGeometry,BufferAttribute,BufferGeometry,DirectionalLight,DirectionalLightHelper,DoubleSide,Face3,Geometry,MeshBasicMaterial,Mesh,MeshLambertMaterial,MeshNormalMaterial,MeshPhongMaterial,Line,LineBasicMaterial,LineLoop,OrbitControls,OrthographicCamera,PerspectiveCamera,Plane,PlaneBufferGeometry,PlaneHelper,Points,PointsMaterial,Quaternion,Scene,SpotLight,SpotLightHelper,Vector3,WebGLRenderer,
+    }=THREE;
+    import { GUI } from '/jsm/libs/dat.gui.module.js';
+
+    let canvas,viewW,viewH;
+    let renderer,scene,camera,lightMain,dirLight2,orbitCtrl;
+
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtLight();
+    crtOrbitCtrl();
+    // crtAxes();
+
+    /*绘图*/
+    {
+        const vertices=[
+            new Vector3(-0.3,  0.3, 0 ),
+            new Vector3(-0.3, -0.3, 0 ),
+            new Vector3( 0.3, -0.3, 0 ),
+            new Vector3( 0.3,  0.3, 0 )
+        ];
+        crtLines(vertices,9);
+    }
+    //绘制多条路径
+    function crtLines(vertices,n){
+        crtLine(vertices);
+        let centerVertices=vertices;
+        for (let i=0;i<n;i++){
+            centerVertices=getCenterVertices(centerVertices);
+            crtLine(centerVertices);
+        }
+    }
+    //绘制路径
+    function crtLine(vertices){
+        const geo=new Geometry();
+        geo.vertices=vertices;
+        const mat=new MeshBasicMaterial({color: 0xffffff});
+        const line=new LineLoop(geo,mat);
+        scene.add(line);
+    }
+    //获取路径的中心点集合
+    function getCenterVertices(vertices){
+        const centerVertices=[];
+        const len=vertices.length;
+        vertices.forEach((ele,ind)=>{
+            const nextInd=ind===(len-1)?0:ind+1;
+            const centerVertice=ele.clone().lerp(vertices[nextInd],0.5);
+            centerVertices.push(centerVertice);
+        });
+        return centerVertices;
+    }
+    /*渲染*/
+    render();
+
+    /*自适应窗口*/
+    window.onresize=function () {
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        renderer.setSize(viewW, viewH);
+        updateCamera();
+        render();
+    };
+
+    /*GUI*/
+    // crtGui();
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.shadowMap.enabled = true;
+        renderer.setSize(viewW, viewH);
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    function crtCamera(){
+        /*透视相机PerspectiveCamera
+        * fov：摄像机视锥体垂直视野角度
+        * aspect：摄像机视锥体长宽比
+        * near：摄像机视锥体近端面
+        * far：摄像机视锥体远端面
+        * */
+        const fov = 45;
+        const aspect = viewW / viewH;
+        const near = 0.01;
+        const far = 10;
+        camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(0, 0, 1.0 );
+        camera.lookAt(scene.position);
+        scene.add(camera);
+    }
+    function crtLight(){
+        scene.add( new AmbientLight( 0x404040 ) );
+
+        let spotLight = new SpotLight( 0xffffff,0.7);
+        spotLight.angle = Math.PI / 5;
+        spotLight.penumbra = 0.2;
+        spotLight.position.set( 2, 3, 3 );
+        spotLight.castShadow = true;
+        spotLight.shadow.camera.near = 3;
+        spotLight.shadow.camera.far = 10;
+        spotLight.shadow.mapSize.width = 1024;
+        spotLight.shadow.mapSize.height = 1024;
+        scene.add( spotLight );
+
+        let dirLight = new DirectionalLight( 0x55505a, 1.3 );
+        dirLight.position.set( 0, 3, 0 );
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.near = 1;
+        dirLight.shadow.camera.far = 10;
+
+        dirLight.shadow.camera.right = 1;
+        dirLight.shadow.camera.left = - 1;
+        dirLight.shadow.camera.top	= 1;
+        dirLight.shadow.camera.bottom = - 1;
+
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add( dirLight );
+    }
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+        /*当轨道控制器发生改变时，进行渲染*/
+        orbitCtrl.addEventListener('change',function(){
+            render();
+        });
+    }
+    function render() {
+        renderer.render(scene, camera);
+    }
+    function updateCamera(){
+        //设置相机视椎体长宽比
+        camera.aspect = viewW / viewH;
+        //更新相机的投影矩阵
+        camera.updateProjectionMatrix();
+    }
+    function crtGui(){
+        /*GUI*/
+        //r, wSegs, hSegs,phiLen,theLen
+        const gui=new GUI();
+        /*gui.add(dt,'radianCur',0,Math.PI*2,0.001).onChange(function(val){
+            meshPlane.rotateOnAxis(axis,val-dt.radianOld);
+            dt.radianOld=val;
+            render();
+        });*/
+    }
+
+
+
+
+    function crtAxes(){
+        /*坐标轴*/
+        const axesHelper = new AxesHelper( 1);
+        scene.add( axesHelper );
+    }
+</script>
+</body>
+</html>

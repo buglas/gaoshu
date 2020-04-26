@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>曲面</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<script type="module">
+    import {
+        BackSide,BoxBufferGeometry,BoxHelper,DirectionalLight,FrontSide,Mesh,MeshBasicMaterial,MeshNormalMaterial,MeshPhongMaterial,OctahedronBufferGeometry,OrthographicCamera,PerspectiveCamera,Points,PointsMaterial,Scene,WebGLRenderer,
+    } from '/build/three.module.js';
+    import { GUI } from '/jsm/libs/dat.gui.module.js';
+    import { OrbitControls } from '/jsm/controls/OrbitControls.js';
+
+    let viewW,viewH;
+    let renderer,scene,camera,dirLight1,dirLight2,orbitCtrl;
+    let dt={radius:0.5,detail:0};
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtLight();
+    crtOrbitCtrl();
+
+    /*绘图*/
+    let mesh=null;
+    let meshW=null;
+    {
+        /*立方体模型 BoxBufferGeometry*/
+        const geo=new OctahedronBufferGeometry(dt.radius,dt.detail);
+        /*法线材质 MeshNormalMaterial*/
+        const mat=new MeshNormalMaterial();
+        /*网格对象 Mesh*/
+        mesh=new Mesh(geo,mat);
+        /*将网格对象添加到场景*/
+        scene.add(mesh);
+
+        const matW=new MeshBasicMaterial({
+            color:0xffffff,
+            wireframe:true
+        });
+        meshW=new Mesh(geo,matW);
+        scene.add(meshW);
+    }
+    /*渲染*/
+    render();
+    /*自适应窗口*/
+    window.addEventListener('resize',resizeFn);
+    /*GUI*/
+    crtGui();
+
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        const canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.setSize(viewW, viewH);
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    function crtCamera(){
+        /*透视相机PerspectiveCamera
+        * fov：摄像机视锥体垂直视野角度
+        * aspect：摄像机视锥体长宽比
+        * near：摄像机视锥体近端面
+        * far：摄像机视锥体远端面
+        * */
+        const fov = 45;
+        const aspect = viewW / viewH;
+        const near = 0.01;
+        const far = 10;
+        camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(1,1,1.4);
+        camera.lookAt(scene.position);
+        scene.add(camera);
+    }
+    function crtLight(){
+        /*灯光
+        * DirectionalLight 平行光
+        * */
+        //主光源
+        dirLight1=new DirectionalLight(0xffffff,1.5);
+        dirLight1.position.set(-0.5,1,0.8);
+        scene.add(dirLight1);
+        //辅光源
+        dirLight2=new DirectionalLight(0xffffff,0.65);
+        dirLight2.position.set(1.5,-0.8,-1);
+        scene.add(dirLight2);
+    }
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+        /*当轨道控制器发生改变时，进行渲染*/
+        orbitCtrl.addEventListener('change',function(){
+            render();
+        });
+    }
+    function render() {
+        renderer.render(scene, camera);
+    }
+    function resizeFn(){
+        //重新获取视口尺寸
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        //设置渲染器尺寸
+        renderer.setSize(viewW, viewH);
+        //设置相机视椎体长宽比
+        camera.aspect = viewW / viewH;
+        //更新相机的投影矩阵
+        camera.updateProjectionMatrix();
+        //重新渲染
+        render();
+    }
+    function crtGui(){
+        /*GUI*/
+        const gui=new GUI();
+        gui.add(dt,'radius',0.1,0.8,0.01).onChange(function(){
+            update();
+            render();
+        });
+        gui.add(dt,'detail',0,5,1).onChange(function(){
+            update();
+            render();
+        });
+    }
+    function update(){
+        const geo=new OctahedronBufferGeometry(dt.radius,dt.detail);
+        mesh.geometry=geo;
+        meshW.geometry=geo;
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <title>three.js webgl - clipping stencil</title>
+</head>
+<body style="margin: 0;overflow: hidden">
+<script type="module">
+    import * as THREE from '/build/three.module.js';
+    import { OrbitControls } from '/jsm/controls/OrbitControls.js';
+
+    /*相机，场景，渲染器，对象，统计器*/
+    var camera, scene, renderer, object;
+    /*平面对象集合，截面对象集合，平面辅助对象集合*/
+    var plane, planeObjects, planeHelper;
+    /*计时器*/
+    var clock;
+    /*初始化*/
+    init();
+    /*动画*/
+    animate();
+
+    /*创建平面模具集合(模型，平面，渲染顺序)
+    *   材质裁剪面的裁剪原理
+    * */
+    function createPlaneStencilGroup( geometry, plane ) {
+        var group = new THREE.Group();
+        /*基本材质 MeshBasicMaterial()
+        *   depthWrite 材质是否对深度缓冲有影响
+        *   depthTest 是否开启深度缓冲
+        *   colorWrite 材质是否对颜色缓冲有影响
+        *   stencilWrite 材质是否对模具缓冲有影响
+        *   stencilFunc 要使用的模具计算函数。默认值为AlwaysStencilFunc。
+        * */
+        var baseMat = new THREE.MeshBasicMaterial();
+        baseMat.depthWrite = false;
+        baseMat.depthTest = false;
+        baseMat.colorWrite = false;
+        baseMat.stencilWrite = true;
+        baseMat.stencilFunc = THREE.AlwaysStencilFunc;
+
+        /*背面材质
+        *   side 面的显示方式
+        *       BackSide 背面
+        *   clippingPlanes 裁剪平面[]，Plane 对象的集合
+        *   stencilFail 模具计算失败的回调函数，默认为keepsencilop
+        *   stencilZFail 模具计算成功，但深度计算失败的回调函数，默认为keepsencilop
+        *   stencilZPass stencilFail和stencilZFail都成功后要执行的模具操作，默认为keepsencilop
+        * */
+        var mat0 = baseMat.clone();
+        mat0.side = THREE.BackSide;
+        mat0.clippingPlanes = [ plane ];
+        mat0.stencilFail = THREE.IncrementWrapStencilOp;
+        mat0.stencilZFail = THREE.IncrementWrapStencilOp;
+        mat0.stencilZPass = THREE.IncrementWrapStencilOp;
+
+        /*被裁剪对象的背面*/
+        var mesh0 = new THREE.Mesh( geometry, mat0 );
+        mesh0.renderOrder = 1;
+        group.add( mesh0 );
+
+        // front faces
+        var mat1 = baseMat.clone();
+        mat1.side = THREE.FrontSide;
+        mat1.clippingPlanes = [ plane ];
+        mat1.stencilFail = THREE.DecrementWrapStencilOp;
+        mat1.stencilZFail = THREE.DecrementWrapStencilOp;
+        mat1.stencilZPass = THREE.DecrementWrapStencilOp;
+
+        /*被裁剪对象的前面*/
+        var mesh1 = new THREE.Mesh( geometry, mat1 );
+        mesh1.renderOrder = 1;
+        group.add( mesh1 );
+        return group;
+    }
+
+    /*初始化*/
+    function init() {
+        /*时钟*/
+        clock = new THREE.Clock();
+        /*场景*/
+        scene = new THREE.Scene();
+        /*透视相机*/
+        camera = new THREE.PerspectiveCamera( 36, window.innerWidth / window.innerHeight, 1, 100 );
+        camera.position.set( 0, 0, 3 );
+        /*环境光*/
+        const ambientLight=new THREE.AmbientLight( 0xffffff, 0.5 );
+        scene.add(ambientLight);
+        /*平行光*/
+        var dirLight = new THREE.DirectionalLight( 0xffffff, 1 );
+        dirLight.position.set( 5, 10, 7.5 );
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.right = 2;
+        dirLight.shadow.camera.left = - 2;
+        dirLight.shadow.camera.top	= 2;
+        dirLight.shadow.camera.bottom = - 2;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add( dirLight );
+
+        /*裁剪平面对象集合
+        * Plane(方向，偏移量)
+        * */
+        plane = new THREE.Plane( new THREE.Vector3(0, 0,  - 1), 0 );
+
+        /*平面辅助对象集合*/
+        planeHelper = new THREE.PlaneHelper( plane, 2, 0xffffff );
+        scene.add( planeHelper );
+
+        /*结*/
+        var geometry = new THREE.TorusKnotBufferGeometry( 0.4, 0.15, 220, 60 );
+        object = new THREE.Group();
+        scene.add( object );
+
+        /*平面模型*/
+        var planeGeom = new THREE.PlaneBufferGeometry( 4, 4 );
+        /*平面对象数组*/
+        var poGroup = new THREE.Group();
+        /*模具集合 createPlaneStencilGroup(被裁剪模型，裁剪平面，渲染序号)*/
+        var stencilGroup = createPlaneStencilGroup( geometry, plane);
+        // plane is clipped by the other clipping planes
+        /*平面被其他剪裁平面剪裁*/
+        /*标准材质 MeshStandardMaterial
+        *   metalness 光泽度，0 为石材，1 为金属
+        *   roughness 反射，0 为镜面
+        *   clippingPlanes 裁剪面
+        *   stencilRef 模具编号
+        * */
+        var planeMat = new THREE.MeshStandardMaterial( {
+            color: 0xE91E63,
+            metalness: 0.1,
+            roughness: 0.75,
+            stencilWrite: true,
+            stencilRef: 0,
+            stencilFunc: THREE.NotEqualStencilFunc,
+            stencilFail: THREE.ReplaceStencilOp,
+            stencilZFail: THREE.ReplaceStencilOp,
+            stencilZPass: THREE.ReplaceStencilOp,
+
+        } );
+        /*平面网格对象*/
+        var po = new THREE.Mesh( planeGeom, planeMat );
+        po.renderOrder =1.1;
+        object.add( stencilGroup );
+        poGroup.add( po );
+        scene.add( poGroup );
+
+        /*设置平面对象的朝向*/
+        /*po.lookAt(
+            po.position.x - plane.normal.x,
+            po.position.y - plane.normal.y,
+            po.position.z - plane.normal.z,
+        );*/
+
+        /*结材质*/
+        var material = new THREE.MeshStandardMaterial( {
+            color: 0xFFC107,
+            metalness: 0.1,
+            roughness: 0.75,
+            clippingPlanes: [plane],
+            clipShadows: true,
+            shadowSide: THREE.DoubleSide,
+        } );
+
+        /*结对象*/
+        var clippedColorFront = new THREE.Mesh( geometry, material );
+        clippedColorFront.castShadow = true;
+        clippedColorFront.renderOrder = 6;
+        object.add( clippedColorFront );
+
+        /*地面*/
+        var ground = new THREE.Mesh(
+            new THREE.PlaneBufferGeometry( 9, 9, 1, 1 ),
+            new THREE.ShadowMaterial( { color: 0, opacity: 0.25, side: THREE.DoubleSide } )
+        );
+        ground.rotation.x = - Math.PI / 2; // rotates X/Y to X/Z
+        ground.position.y = - 1;
+        ground.receiveShadow = true;
+        scene.add( ground );
+
+        /*渲染器*/
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+        renderer.shadowMap.enabled = true;
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.setClearColor( 0x263238 );
+        window.addEventListener( 'resize', onWindowResize, false );
+        document.body.appendChild( renderer.domElement );
+        //渲染器是否考虑对象级剪切平面
+        renderer.localClippingEnabled = true;
+
+        /*控制器*/
+        var controls = new OrbitControls( camera, renderer.domElement );
+        controls.minDistance = 2;
+        controls.maxDistance = 20;
+        controls.update();
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+
+    function animate() {
+        var delta = clock.getDelta();
+        requestAnimationFrame( animate );
+        object.rotation.x += delta * 0.5;
+        object.rotation.y += delta * 0.2;
+        renderer.render( scene, camera );
+    }
+
+</script>
+
+</body>
+</html>

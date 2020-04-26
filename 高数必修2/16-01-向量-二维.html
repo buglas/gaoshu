@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>多边形体积</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<!--引入three.js 工具-->
+<script src="/build/three.js"></script>
+<!--引入轨道控制器，此控制器会直接挂载到three.js暴露出的THREE对象上-->
+<script src="/build/OrbitControls.js"></script>
+<script type="module">
+    /*解构常用对象，方便调用*/
+    const {
+        ArrowHelper,AxesHelper,BoxBufferGeometry,BufferGeometry,DirectionalLight,DirectionalLightHelper,Geometry,Mesh,MeshLambertMaterial,MeshPhongMaterial,Line,LineBasicMaterial,LineLoop,OrbitControls,OrthographicCamera,PerspectiveCamera,PlaneBufferGeometry,Scene,SpotLight,SpotLightHelper,Vector3,WebGLRenderer,
+    }=THREE;
+    import { GUI } from '/jsm/libs/dat.gui.module.js';
+    import GaoShu from '/jsmSelf/GaoShu.js';
+
+    let canvas,viewW,viewH;
+    let renderer,scene,camera,lightMain,dirLight2,orbitCtrl;
+
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtLight();
+    crtOrbitCtrl();
+    crtAxes();
+
+    /*绘图*/
+    let arrowHelper=null;
+    {
+        const dir = new Vector3( 1, 2, 0 );
+        dir.normalize();
+        const origin = new Vector3( 0, 0, 0 );
+        const length = 0.3;
+        const hex = 0xffff00;
+        arrowHelper = new ArrowHelper( dir, origin, length, hex );
+        arrowHelper.dir=dir;
+        arrowHelper.length=length;
+        scene.add( arrowHelper );
+    }
+    /*渲染*/
+    render();
+
+    /*canvas 滑动事件*/
+    canvas.addEventListener('mousemove',function(event){
+        /*计算鼠标在canvas 中的位置*/
+        const dir=getMousePos(canvas,event).normalize();
+        arrowHelper.setDirection(dir);
+        arrowHelper.dir=dir;
+        render();
+    });
+    function getMousePos(canvas,event){
+        const mousePos=new Vector3();
+        const mx=event.clientX;
+        const my=event.clientY;
+        const rect=canvas.getBoundingClientRect();
+        mousePos.x=((mx-rect.left)-canvas.width/2)/(canvas.width/2);
+        mousePos.y=(canvas.height/2-(my-rect.top))/(canvas.height/2);
+        return mousePos;
+    }
+
+    /*自适应窗口*/
+    window.onresize=function () {
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        renderer.setSize(viewW, viewH);
+        updateCamera();
+        render();
+    };
+
+    /*GUI*/
+    crtGui();
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.shadowMap.enabled = true;
+        renderer.setSize(viewW, viewH);
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    function crtCamera(){
+        /*正交相机 OrthographicCamera
+        * left — 摄像机视锥体左侧面。
+        * right — 摄像机视锥体右侧面。
+        * top — 摄像机视锥体上侧面。
+        * bottom — 摄像机视锥体下侧面。
+        * near — 摄像机视锥体近端面。
+        * far — 摄像机视锥体远端面。
+        * */
+        //实例化正交相机
+        camera = new OrthographicCamera();
+        camera.near=0.1;
+        camera.far=10;
+        camera.position.set(0, 0, 4);
+        camera.lookAt(scene.position);
+        //更新相机的投影矩阵
+        updateCamera();
+        //相机位置
+        // camera.position.set(0.5,0.5,1);
+        scene.add(camera);
+    }
+    function crtLight(){
+        /*灯光
+        * DirectionalLight 平行光
+        * */
+        //主光源
+        lightMain=new SpotLight(0xffffff,1.2);
+        lightMain.castShadow=true;
+        lightMain.angle = Math.PI /6;
+        lightMain.shadow.radius=2;
+        lightMain.shadow.mapSize.set(1024,1024);
+        lightMain.shadow.camera.near = 0.1;
+        lightMain.shadow.camera.far = 10;
+        lightMain.shadow.camera.fov = 20;
+        lightMain.position.set(-1.5,3.3,3);
+        scene.add(lightMain);
+        //辅光源
+        dirLight2=new DirectionalLight(0xffffff,0.5);
+        dirLight2.position.set(1.5,0.6,-1);
+        scene.add(dirLight2);
+    }
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+        /*当轨道控制器发生改变时，进行渲染*/
+        orbitCtrl.addEventListener('change',function(){
+            render();
+        });
+    }
+    function render() {
+        renderer.render(scene, camera);
+    }
+    function updateCamera(){
+        const s = 0.5;
+        const k = viewW / viewH;
+        camera.left=-s * k;
+        camera.right=s * k;
+        camera.top=s;
+        camera.bottom=-s;
+        camera.updateProjectionMatrix();
+    }
+    function crtGui(){
+        /*GUI*/
+        //r, wSegs, hSegs,phiLen,theLen
+        const gui=new GUI();
+        gui.add(arrowHelper,'length',0.01,1).onChange(function (val) {
+            arrowHelper.setLength(val);
+            render();
+        });
+
+
+    }
+
+
+
+
+    function crtAxes(){
+        /*坐标轴*/
+        const axesHelper = new AxesHelper( 1);
+        scene.add( axesHelper );
+    }
+</script>
+</body>
+</html>

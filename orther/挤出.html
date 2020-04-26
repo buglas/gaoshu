@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>截面</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<script type="module">
+    import {
+        AmbientLight,AlwaysStencilFunc,AxesHelper,BackSide,BoxBufferGeometry,BoxHelper,BufferGeometry,DecrementWrapStencilOp,DirectionalLight,DoubleSide,EllipseCurve,ExtrudeBufferGeometry,FrontSide,Group,IncrementWrapStencilOp,Line,LineBasicMaterial,Mesh,MeshBasicMaterial,MeshNormalMaterial,MeshPhongMaterial,MeshStandardMaterial,NotEqualStencilFunc,OctahedronBufferGeometry,OctahedronGeometry,OrthographicCamera,PerspectiveCamera,Plane,Shape,SpotLight,PlaneBufferGeometry,PlaneHelper,Points,PointsMaterial,ReplaceStencilOp,Scene,TorusKnotBufferGeometry,Vector3,WebGLRenderer,
+    } from '/build/three.module.js';
+    import { GUI } from '/jsm/libs/dat.gui.module.js';
+    import { OrbitControls } from '/jsm/controls/OrbitControls.js';
+
+    let viewW,viewH;
+    let renderer,scene,camera,dirLight1,dirLight2,orbitCtrl;
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtLight();
+    crtOrbitCtrl();
+    crtAxes();
+
+    /*绘图*/
+    const dt={
+        r:0.3,
+        segs:6,
+        extrude:0.8
+    };
+    {
+
+        const {r,segs,extrude}=dt;
+        /*材质*/
+        const mat=new MeshNormalMaterial();
+
+        /*椭圆形曲线 EllipseCurve(x,y,xRadius,yRadius,aStartAngle, aEndAngle,clockwise,rotation)
+        * x,y 圆心位，默认值为0
+        * xRadius,yRadius 椭圆x、y 方向的半径，默认值为1
+        * aStartAngle 起始弧度，默认值为0
+        * aEndAngle 结束弧度，默认值为Math.PI*2
+        * clockwise 是否按照顺时针方向来绘制，默认值为false
+        * rotation 椭圆从X轴正方向逆时针的旋转角度，默认值为0
+        * */
+        const curve = new EllipseCurve(
+            0,  0,
+            r, r,
+            0,  2 * Math.PI,
+            false,
+            0
+        );
+        /*通过椭圆形曲线获取顶点*/
+        const points = curve.getPoints( segs );
+        /*图形*/
+        const shape=new Shape(points);
+        /*挤出-参数*/
+        const extrudeSettings = {
+            steps: 1,
+            depth: extrude,
+            bevelEnabled: false,
+            bevelThickness: 0,
+            bevelSize: 0,
+            bevelOffset: 0,
+            bevelSegments: 0
+        };
+
+        const group=new Group();
+
+        /*模型 BoxBufferGeometry*/
+        const geo=new ExtrudeBufferGeometry( shape, extrudeSettings );
+        /*基础对象*/
+        const mesh=new Mesh(geo,mat);
+        /*将网格对象添加到场景*/
+        group.add(mesh);
+
+        /*线框*/
+        const matWire=new MeshBasicMaterial({
+            color:0xffffff,
+            wireframe:true
+        });
+        const mesh2=new Mesh(geo,matWire);
+        group.add(mesh2);
+
+        group.rotation.x=-Math.PI/2;
+        scene.add(group);
+    }
+
+
+    /*渲染*/
+    render();
+    /*自适应窗口*/
+    window.addEventListener('resize',resizeFn);
+    /*GUI*/
+    crtGui();
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        const canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.setSize(viewW, viewH);
+        //1.启用模板测试
+        renderer.localClippingEnabled = true;
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    function crtCamera(){
+        /*透视相机PerspectiveCamera
+        * fov：摄像机视锥体垂直视野角度
+        * aspect：摄像机视锥体长宽比
+        * near：摄像机视锥体近端面
+        * far：摄像机视锥体远端面
+        * */
+        const fov = 45;
+        const aspect = viewW / viewH;
+        const near = 0.01;
+        const far = 10;
+        camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(0, 2, 3 );
+        camera.lookAt(scene.position);
+        scene.add(camera);
+    }
+    function crtLight(){
+        scene.add( new AmbientLight( 0x404040 ) );
+
+        let spotLight = new SpotLight( 0xffffff,0.7);
+        spotLight.angle = Math.PI / 5;
+        spotLight.penumbra = 0.2;
+        spotLight.position.set( 2, 3, 3 );
+        spotLight.castShadow = true;
+        spotLight.shadow.camera.near = 3;
+        spotLight.shadow.camera.far = 10;
+        spotLight.shadow.mapSize.width = 1024;
+        spotLight.shadow.mapSize.height = 1024;
+        scene.add( spotLight );
+
+        let dirLight = new DirectionalLight( 0x55505a, 1.3 );
+        dirLight.position.set( 0, 3, 0 );
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.near = 1;
+        dirLight.shadow.camera.far = 10;
+
+        dirLight.shadow.camera.right = 1;
+        dirLight.shadow.camera.left = - 1;
+        dirLight.shadow.camera.top	= 1;
+        dirLight.shadow.camera.bottom = - 1;
+
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add( dirLight );
+    }
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+        /*当轨道控制器发生改变时，进行渲染*/
+        orbitCtrl.addEventListener('change',function(){
+            render();
+        });
+    }
+    function render() {
+        renderer.render(scene, camera);
+    }
+    function resizeFn(){
+        //重新获取视口尺寸
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        //设置渲染器尺寸
+        renderer.setSize(viewW, viewH);
+        //设置相机视椎体长宽比
+        camera.aspect = viewW / viewH;
+        //更新相机的投影矩阵
+        camera.updateProjectionMatrix();
+        //重新渲染
+        render();
+    }
+    function crtGui(){
+        /*GUI*/
+        const gui=new GUI();
+        gui.add(dt,'r',0,1,0.1).onChange(function (val) {
+
+        })
+
+    }
+    function crtAxes(){
+        /*坐标轴*/
+        const axesHelper = new AxesHelper( 1);
+        scene.add( axesHelper );
+    }
+
+</script>
+</body>
+</html>

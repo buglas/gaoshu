@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>mode</title>
+    <style>
+        html, body {margin: 0;height: 100%;}
+        p{margin: 0}
+        #canvas {width: 100%;height: 100%;display: block;}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<!--引入three.js 工具-->
+<script src="/build/three.js"></script>
+<!--引入轨道控制器，此控制器会直接挂载到three.js暴露出的THREE对象上-->
+<script src="/build/OrbitControls.js"></script>
+<script>
+    /*解构常用对象，方便调用*/
+    const {
+        Scene,PerspectiveCamera,WebGLRenderer,PlaneGeometry,MeshBasicMaterial,Mesh,OrbitControls
+    }=THREE;
+
+    /*获取canvas 元素
+    * 获取canvas 尺寸
+    * */
+    const canvas = document.querySelector('#canvas');
+    let [viewW,viewH] = [canvas.clientWidth,canvas.clientHeight];
+
+    /*渲染器对象 WebGLRenderer
+    * setSize：设置渲染尺寸
+    * */
+    const renderer = new WebGLRenderer({canvas});
+    renderer.setSize(viewW, viewH);
+
+    /*场景对象 Scene*/
+    const scene = new Scene();
+
+    /*相机PerspectiveCamera
+    * fov：摄像机视锥体垂直视野角度
+    * aspect：摄像机视锥体长宽比
+    * near：摄像机视锥体近端面
+    * far：摄像机视锥体远端面
+    * */
+    const fov = 45;
+    const aspect = viewW / viewH;
+    const near = 0.01;
+    const far = 10;
+    const camera = new PerspectiveCamera(fov, aspect, near, far);
+    camera.position.set(0,0,2);
+
+    /*绘图*/
+    const geometry = new PlaneGeometry( .4,.6 );
+    const material = new MeshBasicMaterial( {color: 0xffff00} );
+    const plane = new Mesh( geometry, material );
+    scene.add( plane );
+
+    /*渲染*/
+    render();
+
+    /*轨道控制器 OrbitControls*/
+    const orbitCtrl = new OrbitControls(camera, canvas);
+    /*当轨道控制器发生改变时，进行渲染*/
+    orbitCtrl.addEventListener('change',function(){
+        render();
+    });
+
+    /*自适应窗口
+    * 重新获取canvas 尺寸
+    * 设置渲染器尺寸
+    * 设置相机视椎体长宽比
+    * 更新相机的投影矩阵
+    * */
+    window.onresize=function () {
+        viewW = canvas.clientWidth;
+        viewH = canvas.clientHeight;
+        renderer.setSize(viewW, viewH, false);
+        camera.aspect = viewW / viewH;
+        camera.updateProjectionMatrix();
+        render();
+    };
+
+    function render() {
+        renderer.render(scene, camera);
+    }
+
+
+</script>
+</body>
+</html>

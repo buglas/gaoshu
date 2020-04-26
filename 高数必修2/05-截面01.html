@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>截面</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<script type="module">
+    import {
+        AlwaysStencilFunc,BackSide,BoxBufferGeometry,BoxHelper,DecrementWrapStencilOp,DirectionalLight,DoubleSide,FrontSide,Group,IncrementWrapStencilOp,Mesh,MeshBasicMaterial,MeshNormalMaterial,MeshPhongMaterial,MeshStandardMaterial,NotEqualStencilFunc,OctahedronBufferGeometry,OctahedronGeometry,OrthographicCamera,PerspectiveCamera,Plane,PlaneBufferGeometry,PlaneHelper,Points,PointsMaterial,ReplaceStencilOp,Scene,TorusKnotBufferGeometry,Vector3,WebGLRenderer,
+    } from '/build/three.module.js';
+    import { GUI } from '/jsm/libs/dat.gui.module.js';
+    import { OrbitControls } from '/jsm/controls/OrbitControls.js';
+
+    let viewW,viewH;
+    let renderer,scene,camera,dirLight1,dirLight2,orbitCtrl;
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtLight();
+    crtOrbitCtrl();
+
+    /*绘图*/
+    {
+        /*裁剪平面对象
+        * Plane(方向，偏移量)
+        * */
+        let plane = new Plane( new Vector3(0,0,-1), 0 );
+
+        /*结*/
+        let geoKnot = new TorusKnotBufferGeometry( 0.4, 0.15, 220, 60 );
+        /*平面模型*/
+        let planeGeom = new PlaneBufferGeometry( 4, 4 );
+        /*模具集合 createPlaneStencilGroup(被裁剪模型，裁剪平面，渲染序号)*/
+        let stencilGroup = createPlaneStencilGroup( geoKnot, plane);
+        scene.add( stencilGroup );
+        // plane is clipped by the other clipping planes
+        /*平面被其他剪裁平面剪裁*/
+        /*标准材质 MeshStandardMaterial
+        *   metalness 光泽度，0 为石材，1 为金属
+        *   roughness 反射，0 为镜面
+        *   clippingPlanes 裁剪面
+        *   stencilRef 模具编号
+        * */
+        let planeMat = new MeshStandardMaterial( {
+            color: 0xE91E63,
+            metalness: 0.1,
+            roughness: 0.75,
+            stencilWrite: true,
+            stencilRef: 0,
+            stencilFunc: NotEqualStencilFunc,
+            stencilFail: ReplaceStencilOp,
+            stencilZFail: ReplaceStencilOp,
+            stencilZPass: ReplaceStencilOp,
+
+        } );
+        /*平面网格对象*/
+        let meshPlane = new Mesh( planeGeom, planeMat );
+        meshPlane.renderOrder =1.1;
+        scene.add( meshPlane );
+
+        /*结材质*/
+        let material = new MeshStandardMaterial( {
+            color: 0xFFC107,
+            metalness: 0.1,
+            roughness: 0.75,
+            clippingPlanes: [plane],
+            clipShadows: true,
+            shadowSide: DoubleSide,
+        } );
+        /*结对象*/
+        var clippedColorFront = new Mesh( geoKnot, material );
+        clippedColorFront.castShadow = true;
+        clippedColorFront.renderOrder = 6;
+        scene.add( clippedColorFront );
+    }
+
+    /*创建模板缓冲区(模型，平面，渲染顺序)
+    *   材质裁剪面的裁剪原理
+    * */
+    function createPlaneStencilGroup( geoKnot, plane ) {
+        const group = new Group();
+        /*基本材质 MeshBasicMaterial()
+        *   depthWrite 材质是否对深度缓冲有影响
+        *   depthTest 是否开启深度缓冲
+        *   colorWrite 材质是否对颜色缓冲有影响
+        *   stencilWrite 材质是否对模具缓冲有影响
+        *   stencilFunc 要使用的模具计算函数。默认值为AlwaysStencilFunc。
+        * */
+        //此材质只是用于计算的
+        const baseMat = new MeshBasicMaterial();
+        baseMat.depthWrite = false;
+        baseMat.depthTest = false;
+        baseMat.colorWrite = false;
+        baseMat.stencilWrite = true;
+        baseMat.stencilFunc = AlwaysStencilFunc;
+
+        /*背面材质
+        *   side 面的显示方式
+        *       BackSide 背面
+        *   clippingPlanes 裁剪平面[]，Plane 对象的集合
+        *   stencilFail 模具计算失败的回调函数，默认为keepsencilop
+        *   stencilZFail 模具计算成功，但深度计算失败的回调函数，默认为keepsencilop
+        *   stencilZPass stencilFail和stencilZFail都成功后要执行的模具操作，默认为keepsencilop
+        * */
+        /*
+        * IncrementWrapStencilOp 增加当前模板缓冲区的值。当增加最大可表示无符号值时，将模板缓冲区值包装为零。
+        * DecrementWrapStencilOp 减小当前模板缓冲区的值。减少模板缓冲区值0时，将模板缓冲区值包装为最大可表示的无符号值。
+        * */
+        const mat0 = baseMat.clone();
+        mat0.side = BackSide;
+        mat0.clippingPlanes = [ plane ];
+        mat0.stencilFail = IncrementWrapStencilOp;
+        mat0.stencilZFail = IncrementWrapStencilOp;
+        mat0.stencilZPass = IncrementWrapStencilOp;
+
+        /*被裁剪对象的背面*/
+        const mesh0 = new Mesh( geoKnot, mat0 );
+        mesh0.renderOrder = 1;
+        group.add( mesh0 );
+
+        // front faces
+        const mat1 = baseMat.clone();
+        mat1.side = FrontSide;
+        mat1.clippingPlanes = [ plane ];
+        mat1.stencilFail = DecrementWrapStencilOp;
+        mat1.stencilZFail = DecrementWrapStencilOp;
+        mat1.stencilZPass = DecrementWrapStencilOp;
+
+        /*被裁剪对象的前面*/
+        const mesh1 = new Mesh( geoKnot, mat1 );
+        mesh1.renderOrder = 1;
+        group.add( mesh1 );
+        return group;
+    }
+
+
+
+
+    /*渲染*/
+    render();
+    /*自适应窗口*/
+    window.addEventListener('resize',resizeFn);
+    /*GUI*/
+    crtGui();
+
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        const canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.setSize(viewW, viewH);
+        //1.启用模板测试
+        renderer.localClippingEnabled = true;
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    function crtCamera(){
+        /*透视相机PerspectiveCamera
+        * fov：摄像机视锥体垂直视野角度
+        * aspect：摄像机视锥体长宽比
+        * near：摄像机视锥体近端面
+        * far：摄像机视锥体远端面
+        * */
+        const fov = 45;
+        const aspect = viewW / viewH;
+        const near = 0.01;
+        const far = 10;
+        camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(0, 0, 3 );
+        camera.lookAt(scene.position);
+        scene.add(camera);
+    }
+    function crtLight(){
+        /*灯光
+        * DirectionalLight 平行光
+        * */
+        //主光源
+        dirLight1=new DirectionalLight(0xffffff,1.5);
+        dirLight1.position.set(-0.5,1,0.8);
+        scene.add(dirLight1);
+        //辅光源
+        dirLight2=new DirectionalLight(0xffffff,0.65);
+        dirLight2.position.set(1.5,-0.8,-1);
+        scene.add(dirLight2);
+    }
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+        /*当轨道控制器发生改变时，进行渲染*/
+        orbitCtrl.addEventListener('change',function(){
+            render();
+        });
+    }
+    function render() {
+        renderer.render(scene, camera);
+    }
+    function resizeFn(){
+        //重新获取视口尺寸
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        //设置渲染器尺寸
+        renderer.setSize(viewW, viewH);
+        //设置相机视椎体长宽比
+        camera.aspect = viewW / viewH;
+        //更新相机的投影矩阵
+        camera.updateProjectionMatrix();
+        //重新渲染
+        render();
+    }
+    function crtGui(){
+        /*GUI*/
+        const gui=new GUI();
+
+    }
+</script>
+</body>
+</html>

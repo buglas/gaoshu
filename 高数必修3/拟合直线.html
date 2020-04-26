@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>散点图</title>
+    <style>
+        #main{
+            margin: 20px;
+            width: 700px;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+<!--建立dom 容器-->
+<div id="main"></div>
+<!--引入echarts-->
+<script src="/build/echarts.min.js"></script>
+<script>
+    // 基于准备好的dom，初始化echarts实例
+    const myChart = echarts.init(document.getElementById('main'));
+    //数据源
+    const source=[
+        [10.0, 8.04],
+        [8.0, 6.95],
+        [13.0, 7.58],
+        [9.0, 8.81],
+        [11.0, 8.33],
+        [14.0, 9.96],
+        [5.0, 7.24],
+        [1.0, 4.26],
+        [12.0, 10.84],
+        [7.0, 4.82],
+        [3.0, 5.68]
+    ];
+    const len=source.length;
+
+    /*拟合直线方程式：y=a+bx*/
+    /*x、y的平均值*/
+    let [evX,evY]=[0,0];
+    {
+        /*x、y的和*/
+        let [sumX,sumY]=[0,0];
+        source.forEach((ele)=>{
+            sumX+=ele[0];
+            sumY+=ele[1];
+        });
+        [evX,evY]=[sumX/len,sumY/len];
+    }
+    let [a,b]=[null,null];
+    /*求回归系数*/
+    {
+        let [sumL,sumN]=[0,0];
+        source.forEach((ele)=>{
+            const m=ele[0]-evX;
+            sumL+=m*(ele[1]-evY);
+            sumN+=m*m;
+        });
+        b=sumL/sumN;
+        a=evY-b*evX;
+    }
+    /*拟合直线的端点*/
+    let [p1,p2]=[[],[]];
+    {
+        /*数据源排序*/
+        const arr=source.sort((a,b)=>{
+            return a[0]-b[0];
+        });
+        /*取数据源两端的x 值*/
+        const [x1,x2]=[arr[0][0],arr[len-1][0]];
+        /*设置两个端点值*/
+        p1=[x1,getY(x1)];
+        p2=[x2,getY(x2)];
+    }
+    /*基于x 求拟合直线上的y 值*/
+    function getY(x){
+        return a+b*x;
+    }
+
+    // 指定图表的配置项和数据
+    const option = {
+        xAxis: {},
+        yAxis: {},
+        dataset:{source},
+        series: [{
+            type: 'scatter',
+            markLine:{
+                data: [
+                    [{
+                        coord: p1,
+                        symbol: 'none'
+                    }, {
+                        coord: p2,
+                        symbol: 'none'
+                    }]
+                ]
+            }
+        }]
+    };
+
+    // 使用刚指定的配置项和数据显示图表。
+    myChart.setOption(option);
+</script>
+</body>
+</html>

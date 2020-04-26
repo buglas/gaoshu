@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>点线关系</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<!--引入three.js 工具-->
+<script src="/build/three.js"></script>
+<!--引入轨道控制器，此控制器会直接挂载到three.js暴露出的THREE对象上-->
+<script src="/build/OrbitControls.js"></script>
+<script type="module">
+    /*解构常用对象，方便调用*/
+    const {
+        AmbientLight,ArrowHelper,AxesHelper,BoxBufferGeometry,BufferAttribute,BufferGeometry,DirectionalLight,DirectionalLightHelper,DoubleSide,Geometry,MeshBasicMaterial,Mesh,MeshLambertMaterial,MeshPhongMaterial,Line,LineBasicMaterial,LineLoop,Matrix4,OrbitControls,OrthographicCamera,PerspectiveCamera,PlaneBufferGeometry,Points,PointsMaterial,Quaternion,Scene,SpotLight,SpotLightHelper,Vector3,WebGLRenderer,
+    }=THREE;
+    import { GUI } from '/jsm/libs/dat.gui.module.js';
+    import GaoShu from '/jsmSelf/GaoShu.js';
+
+    let canvas,viewW,viewH;
+    let renderer,scene,camera,lightMain,dirLight2,orbitCtrl;
+
+    crtRender();
+    crtScene();
+    crtCamera();
+    crtOrbitCtrl();
+    crtAxes();
+
+    /*绘图*/
+    const dt={
+        radianCur:0,
+        radianOld:0
+    };
+    let axis=null;
+    let meshlane=null;
+    {
+        /*点线*/
+        /*模型*/
+        const geo=new Geometry();
+        geo.vertices=[new Vector3(0, 0, 0),new Vector3(0.3, 0, 0)];
+
+        /*点对象*/
+        /*线对象*/
+        //材质
+        const matP=new PointsMaterial({
+            color:0xffff00,
+            size:0.03
+        });
+        //网格对象
+        const mesh=new Points(geo,matP);
+        scene.add(mesh);
+
+        /*四元数*/
+        const quaternion = new Quaternion();
+        quaternion.setFromAxisAngle( new Vector3( 0, 1, 0 ), Math.PI / 4 );
+        /*四元数应用于模型顶点*/
+        // mesh.geometry.vertices[1].applyQuaternion( quaternion );
+
+        /*四元数应用于模型：先生成矩阵，再应用于模型*/
+        /*const matrix=new Matrix4();
+        matrix.makeRotationFromQuaternion(quaternion);
+        mesh.geometry.applyMatrix(matrix);*/
+
+        /*四元数应用于矩阵*/
+        // mesh.applyQuaternion( quaternion );
+
+    }
+    /*渲染*/
+    render();
+
+    /*自适应窗口*/
+    window.onresize=function () {
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        renderer.setSize(viewW, viewH);
+        updateCamera();
+        render();
+    };
+
+    /*GUI*/
+    crtGui();
+
+    function crtRender(){
+        /*获取canvas 元素
+        * 获取视口尺寸
+        * */
+        canvas = document.querySelector('#canvas');
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+        /*渲染器对象 WebGLRenderer
+        * setSize：设置渲染尺寸
+        * */
+        renderer = new WebGLRenderer({canvas,antialias:true});
+        renderer.shadowMap.enabled = true;
+        renderer.setSize(viewW, viewH);
+    }
+    function crtScene(){
+        /*场景对象 Scene*/
+        scene = new Scene();
+    }
+    function crtCamera(){
+        /*透视相机PerspectiveCamera
+        * fov：摄像机视锥体垂直视野角度
+        * aspect：摄像机视锥体长宽比
+        * near：摄像机视锥体近端面
+        * far：摄像机视锥体远端面
+        * */
+        const fov = 45;
+        const aspect = viewW / viewH;
+        const near = 0.01;
+        const far = 10;
+        camera = new PerspectiveCamera(fov, aspect, near, far);
+        camera.position.set(1, 1, 1 );
+        camera.lookAt(scene.position);
+        scene.add(camera);
+    }
+
+    function crtOrbitCtrl(){
+        /*轨道控制器 OrbitControls*/
+        orbitCtrl = new OrbitControls(camera, renderer.domElement);
+        /*当轨道控制器发生改变时，进行渲染*/
+        orbitCtrl.addEventListener('change',function(){
+            render();
+        });
+    }
+    function render() {
+        renderer.render(scene, camera);
+    }
+    function updateCamera(){
+        //设置相机视椎体长宽比
+        camera.aspect = viewW / viewH;
+        //更新相机的投影矩阵
+        camera.updateProjectionMatrix();
+    }
+    function crtGui(){
+        /*GUI*/
+        //r, wSegs, hSegs,phiLen,theLen
+        const gui=new GUI();
+        /*gui.add(dt,'radianCur',0,Math.PI*2,0.001).onChange(function(val){
+            meshlane.rotateOnAxis(axis,val-dt.radianOld);
+            dt.radianOld=val;
+            render();
+        });*/
+    }
+
+    function crtAxes(){
+        /*坐标轴*/
+        const axesHelper = new AxesHelper( 1);
+        scene.add( axesHelper );
+    }
+</script>
+</body>
+</html>

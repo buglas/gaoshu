@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>自然对数的底</title>
+    <style>
+        body {margin: 0;overflow: hidden}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<canvas id="canvas"></canvas>
+<!--引入three.js 工具-->
+<script src="/build/three.js"></script>
+<!--引入轨道控制器，此控制器会直接挂载到three.js暴露出的THREE对象上-->
+<script src="/build/OrbitControls.js"></script>
+<!--GUI-->
+<script src="/build/dat.gui.min.js"></script>
+<script>
+    /*解构常用对象，方便调用*/
+    const {
+        AxesHelper,BoxBufferGeometry,DirectionalLight,Geometry,Line,LineBasicMaterial,Mesh,MeshPhongMaterial,OrbitControls,OrthographicCamera,Points,PointsMaterial,Scene,Vector3,WebGLRenderer,
+    }=THREE;
+
+    /*获取canvas 元素
+    * 获取视口尺寸
+    * */
+    const canvas = document.querySelector('#canvas');
+    let [viewW,viewH] = [window.innerWidth,window.innerHeight];
+
+    /*渲染器对象 WebGLRenderer
+    * setSize：设置渲染尺寸
+    * */
+    const renderer = new WebGLRenderer({canvas});
+    renderer.setSize(viewW, viewH);
+
+    /*场景对象 Scene*/
+    const scene = new Scene();
+
+    /*正交相机 OrthographicCamera
+    * left — 摄像机视锥体左侧面。
+    * right — 摄像机视锥体右侧面。
+    * top — 摄像机视锥体上侧面。
+    * bottom — 摄像机视锥体下侧面。
+    * near — 摄像机视锥体近端面。
+    * far — 摄像机视锥体远端面。
+    * */
+    //三维场景显示范围的控制系数，系数越大，显示的范围越大
+    const s = 0.5;
+    //实例化正交相机
+    const camera = new OrthographicCamera();
+    //更新相机的投影矩阵
+    updateCamera();
+    //相机位置
+    camera.position.set(0,0,1);
+    scene.add(camera);
+
+    /*坐标轴*/
+    const axesHelper = new AxesHelper( 0.3 );
+    scene.add( axesHelper );
+
+    /*
+    * 自然对数是以常数e为底数的对数
+    * e是 y=pow(x+1/x,x),x>0 的极限值
+    * e是一个无限不循环小数，约等于2.718281828459…，它是一个超越数
+    * 注：
+    *   js 里的Math.log() 便是以e 为底的对数
+    *   所以用js求以a为底，以x为真数时的对数时，需要写成Math.log(x)/Math.log(a)，以此约去e
+    *   至于为什么Math.log(x)/Math.log(a) 就等于数学里的log(a,x)，涉及到换底公式：
+    *     y=log(a,x)
+    *     pow(a,y)=x
+    *     log(e,pow(a,y))=log(e,x)
+    *     y*log(e,a)=log(e,x)
+    *     y=log(e,x)/log(e,a)
+    *
+    * */
+    let dt={
+        a:2,
+        x1:0,
+        x2:6,
+        // x2:60000000,
+    };
+    /*段数*/
+    let seg=40;
+    /*获取因变量的值*/
+    function getY(x) {
+        return Math.pow((x+1)/x,x);
+    }
+
+    /*顶点集合*/
+    let vertices=[];
+
+    /*生成顶点集合*/
+    generateVertices();
+    /*生成顶点集合*/
+    function generateVertices(){
+        const {x1,x2}=dt;
+        const space=(x2-x1)/seg;
+        for(let x=x1;x<x2;x+=space){
+            const y=getY(x);
+            vertices.push(new Vector3(x,y,0));
+        }
+        console.log(vertices[seg-1].y)
+    }
+
+    /*绘图*/
+    //线模型
+    let geo=null;
+    //辅助线模型
+    // let geoH=null;
+    {
+        /*线*/
+        /*线材质 LineBasicMaterial*/
+        const mat=new LineBasicMaterial({
+            color:0xdddddd
+        });
+        /*模型 Geometry*/
+        geo=new Geometry();
+        geo.vertices=vertices;
+        /*线对象*/
+        const line=new Line(geo,mat);
+        line.scale.set(0.07,0.07,0.07);
+        /*将网格对象添加到场景*/
+        scene.add(line);
+
+        /*点 Points*/
+        /*点材质*/
+        const matP=new PointsMaterial({
+            color:0xffff00,
+            size:4
+        });
+        const points=new Points(geo,matP);
+        points.scale.set(0.07,0.07,0.07);
+        scene.add(points);
+    }
+
+    /*GUI*/
+    const gui=new dat.GUI();
+    gui.add(dt,'x1',0, 6,0.1).onChange(function(){
+        updateX();
+        render();
+    });
+    gui.add(dt,'x2',0, 6,0.1).onChange(function(){
+        updateX();
+        render();
+    });
+    /*更新线的y 值*/
+    function updateY(){
+        geo.verticesNeedUpdate=true;
+        vertices.forEach((ele)=>{
+            ele.y=getY(ele.x);
+        });
+    }
+    /*更新x 自变量*/
+    function updateX(){
+        const {x1,x2}=dt;
+        const space=(x2-x1)/seg;
+        let x=x1;
+        geo.verticesNeedUpdate=true;
+        vertices.forEach((ele)=>{
+            ele.x=x;
+            ele.y=getY(x);
+            x+=space;
+        });
+    }
+
+    /*轨道控制器 OrbitControls*/
+    const orbitCtrl = new OrbitControls(camera, canvas);
+    /*当轨道控制器发生改变时，进行渲染*/
+    orbitCtrl.addEventListener('change',function(){
+        render();
+    });
+
+    /*渲染*/
+    render();
+
+    /*自适应窗口
+    * 重新获取视口尺寸
+    * 设置渲染器尺寸
+    * 设置相机的投影矩阵
+    * */
+    window.onresize=function () {
+        [viewW,viewH] = [window.innerWidth,window.innerHeight];
+        renderer.setSize(viewW, viewH);
+        updateCamera()
+        render();
+    };
+    /*渲染*/
+    function render() {
+        renderer.render(scene, camera);
+    }
+    /*更新相机投影矩阵*/
+    function updateCamera(){
+        const k = viewW / viewH;
+        camera.left=-s * k;
+        camera.right=s * k;
+        camera.top=s;
+        camera.bottom=-s;
+        camera.near=0.1;
+        camera.far=2000;
+        camera.updateProjectionMatrix();
+    }
+</script>
+</body>
+</html>

@@ -1,57 +1,80 @@
-/*
-* 环境对象
-* 属性：
-*   renderer 渲染器
-*   scene 场景
-*   camera 相机
-*   orbitCtrl 控制器
-*   axes 坐标轴
-*
-* */
 import {
-    ArrowHelper,AxesHelper,BoxBufferGeometry,BufferAttribute,BufferGeometry,DirectionalLight,DirectionalLightHelper,Geometry,MeshBasicMaterial,Mesh,MeshLambertMaterial,MeshPhongMaterial,Line,LineBasicMaterial,LineLoop,OrthographicCamera,PerspectiveCamera,PlaneBufferGeometry,Points,PointsMaterial,Scene,SpotLight,SpotLightHelper,Vector3,WebGLRenderer,
+    AmbientLight,ArrowHelper,AxesHelper,BoxBufferGeometry,BufferAttribute,BufferGeometry,DirectionalLight,DirectionalLightHelper,Geometry,MeshBasicMaterial,Mesh,MeshLambertMaterial,MeshPhongMaterial,Line,LineBasicMaterial,LineLoop,OrthographicCamera,PerspectiveCamera,PlaneBufferGeometry,Points,PointsMaterial,Scene,SpotLight,SpotLightHelper,Vector3,WebGLRenderer,
 } from "/build/three.module.js"
 import { OrbitControls } from '/jsm/controls/OrbitControls.js';
 import { GUI } from '/jsm/libs/dat.gui.module.js';
 
+/*默认环境配置参数*/
+const defaultParam={
+    cameraType:'p',
+    cameraPos:new Vector3(0, 0, 2),
+    lookAtPos:new Vector3(0, 0, 0),
+}
+
+/*
+* 环境对象
+*   属性：
+*       canvas canvas画布
+*       renderer 渲染器
+*       scene 场景
+*       camera 相机
+*       cameraType 相机类型
+*       lightEnv 灯光环境 {ambLight 环境光,spotLight 辅光,dirLight主光}
+*       orbitCtrl 轨道控制器，发生变化时会刷新视图
+*       axes 坐标轴（辅助对象）
+*       gui 辅助开发对象
+*   方法：
+*       init 初始化
+*       crtRender 建立渲染器
+*       crtCamera 建立相机
+*       crtLight 建立灯光
+*       crtOrbitCtrl 轨道控制器
+*       render 渲染
+*       updateCamera 根据相机类型更新相机，以便自适应窗口
+*       crtPerspectiveCamera 建立透视相机
+*       crtOrthographicCamera 建立正交相机
+*       updatePerspectiveCamera 更新透视相机
+*       updateOrthographicCamera 更新正交相机
+*       checkCameraType 测试相机类型，返回回调函数
+*       resizeFn 相机、渲染器自适应窗口，重新渲染
+* */
 export default class Environment {
-    constructor({canvas,cameraType='p'}) {
-        this.canvas=canvas;
+    constructor(container,param={}) {
+        this.container=container;
+        Object.assign(this,defaultParam,param);
         this.renderer=null;
         this.scene=new Scene();
         this.camera=null;
-        this.cameraType=cameraType;
+
         this.lightEnv={};
         this.orbitCtrl=null;
         this.axes=null;
         this.gui=new GUI();
     }
     init(){
-
+        const {clientWidth,clientHeight}=this.container;
+        this.crtRender(clientWidth,clientHeight);
+        this.crtCamera(clientWidth,clientHeight);
+        this.crtLight();
+        // this.crtOrbitCtrl();
+        this.fitWindowSize();
     }
     //建立渲染器
-    crtRender(){
-        /*获取canvas 元素
-        * 获取视口尺寸
-        * */
-        // const canvas = document.querySelector('#canvas');
-        // [viewW,viewH] = [window.innerWidth,window.innerHeight];
-        /*渲染器对象 WebGLRenderer
-        * setSize：设置渲染尺寸
-        * */
+    crtRender(w,h){
         this.renderer = new WebGLRenderer({
-            canvas:this.camera,
             antialias:true
         });
         this.renderer.shadowMap.enabled = true;
-        // renderer.setSize(viewW, viewH);
+        this.renderer.setSize(w,h);
+        this.container.appendChild(this.renderer.domElement);
     }
     /*建立相机*/
-    crtCamera(){
+    crtCamera(width,height){
         this.checkCameraType(()=>{
-            this.crtPerspectiveCamera();
+            this.crtPerspectiveCamera(width,height);
         },()=>{
-            this.crtOrthographicCamera();
+
+            this.crtOrthographicCamera(width,height);
         });
     }
     /*建立灯光对象*/
@@ -96,8 +119,6 @@ export default class Environment {
             _this.render();
         });
     }
-    /*建立坐标系*/
-    crtAxes();
 
     /*渲染方法*/
     render() {
@@ -108,12 +129,15 @@ export default class Environment {
         this.checkCameraType(()=>{
             this.updatePerspectiveCamera(w,h);
         },()=>{
+            console.log('this.cameraPos',this.cameraPos)
             this.updateOrthographicCamera(w,h);
         });
     }
-    
+
     /*建立透视相机*/
     crtPerspectiveCamera(w,h){
+        console.log('crtPerspectiveCamera')
+        console.log(w,h)
         /*透视相机PerspectiveCamera
         * fov：摄像机视锥体垂直视野角度
         * aspect：摄像机视锥体长宽比
@@ -124,11 +148,11 @@ export default class Environment {
         const aspect = w / h;
         const near = 0.01;
         const far = 10;
-        const camera = new PerspectiveCamera(fov, aspect, near, far);
-        camera.position.set(0, 0, 1.0 );
-        camera.lookAt(this.scene.position);
+        this.camera = new PerspectiveCamera(fov, aspect, near, far);
+        this.camera.position.copy(this.cameraPos);
+        this.camera.lookAt(this.lookAtPos);
+        // camera.updateMatrixWorld();
         this.scene.add(camera);
-        this.camera=camera;
     }
     /*建立正交相机*/
     crtOrthographicCamera(w,h){
@@ -140,26 +164,21 @@ export default class Environment {
         * near — 摄像机视锥体近端面。
         * far — 摄像机视锥体远端面。
         * */
-        //实例化正交相机
-        const camera = new OrthographicCamera();
-        camera.near=0.1;
-        camera.far=10;
-        camera.position.set(0, 0, 4);
-        camera.lookAt(this.scene.position);
+        this.camera = new OrthographicCamera();
+        this.camera.position.copy(this.cameraPos);
+        this.camera.lookAt(this.lookAtPos);
         //更新相机的投影矩阵
-        updateCamera(w,h);
+        this.updateOrthographicCamera(w,h);
         //相机位置
-        // camera.position.set(0.5,0.5,1);
-        this.scene.add(camera);
-        this.camera=camera;
+        this.scene.add(this.camera);
     }
 
     /*更新透视相机*/
     updatePerspectiveCamera(w,h){
         //设置相机视椎体长宽比
-        camera.aspect = w / h;
+        this.camera.aspect = w / h;
         //更新相机的投影矩阵
-        camera.updateProjectionMatrix();
+        this.camera.updateProjectionMatrix();
     }
     /*更新正交相机*/
     updateOrthographicCamera(w,h){
@@ -173,6 +192,7 @@ export default class Environment {
     }
     /*检测相机类型*/
     checkCameraType(p,o){
+        console.log('-----',this.cameraType)
         if(this.cameraType==='p'){
             p();
         }else if(this.cameraType==='o'){
@@ -186,7 +206,15 @@ export default class Environment {
         this.axesHelper.visible=false;
         this.scene.add( axesHelper );
     }
-
+    /*响应窗口变化*/
+    fitWindowSize(){
+        window.addEventListener('resize',()=>{
+            console.log('111111111')
+            const {clientWidth,clientHeight}=this.container;
+            this.resizeFn(clientWidth,clientHeight);
+        })
+    }
+    /*相机、渲染器自适应窗口，重新渲染*/
     resizeFn(w,h){
         //设置渲染器尺寸
         this.renderer.setSize(w,h);

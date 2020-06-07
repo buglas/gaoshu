@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>立方体</title>
+    <style>
+        html{height: 100%}
+        body {height:100%;margin: 0;overflow: hidden}
+        #container{height: 100%}
+    </style>
+</head>
+<body>
+<!--canvas 用于显示webgl 绘制的图像-->
+<div id="container"></div>
+<canvas id="canvas"></canvas>
+
+<script type="module">
+    import {
+        ArrowHelper,AxesHelper,BoxBufferGeometry,BufferAttribute,BufferGeometry,DirectionalLight,DirectionalLightHelper,Geometry,MeshBasicMaterial,Mesh,MeshLambertMaterial,MeshPhongMaterial,Line,LineBasicMaterial,LineLoop,OrthographicCamera,PerspectiveCamera,PlaneBufferGeometry,Points,PointsMaterial,Scene,SpotLight,SpotLightHelper,Vector3,WebGLRenderer,
+    } from "/build/three.module.js"
+    import Environment from "../jsmSelf/Environment.js"
+
+    /*获取canvas 元素
+    * 获取视口尺寸
+    * */
+    const container = document.querySelector('#container');
+
+    /*将环境实例化*/
+    const env=new Environment(container,{
+        cameraType:'o',
+        cameraPos:new Vector3(0,-0.35,2)
+    });
+    env.init();
+    const {camera,scene}=env;
+    camera.translateY(0.35);
+    /*绘图*/
+    {
+        /*高光材质 MeshPhongMaterial*/
+        const mat=new MeshPhongMaterial({
+            color:0xeeeeee
+        });
+        /*立方体模型 BoxBufferGeometry*/
+        const geo=new BoxBufferGeometry(0.05,0.05,0.05);
+        /*网格对象 Mesh*/
+        const mesh=new Mesh(geo,mat);
+        /*将网格对象添加到场景*/
+        scene.add(mesh);
+    }
+    env.render();
+
+    setTimeout(function(){
+        // camera.translateY(0.35);
+        // env.render();
+        // camera.target.position.y+=0.2;
+    },1000)
+
+</script>
+</body>
+</html>
